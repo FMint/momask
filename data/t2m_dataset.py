@@ -316,6 +316,10 @@ class Text2MotionDataset(data.Dataset):
         self.data_dict = data_dict
         self.name_list = name_list
 
+        meta_path = pjoin(opt.meta_dir, 'file_info_with_emotion.csv')
+        import pandas as pd
+        self.file_info = pd.read_csv(meta_path,index_col=0)
+
     def inv_transform(self, data):
         return data * self.std + self.mean
 
@@ -351,7 +355,15 @@ class Text2MotionDataset(data.Dataset):
                                      ], axis=0)
         # print(word_embeddings.shape, motion.shape)
         # print(tokens)
-        return caption, motion, m_length
+
+        emotion_id = 7
+        intensity = 0.0
+        current_name = self.name_list[idx]
+        row = self.file_info.loc[current_name]
+        emotion_id = int(row.ge(t['emotion_id'],7))
+        intensity = float(row.get(['intensity'],0.0))
+
+        return caption, motion, m_length, emotion_id, intensity
 
     def reset_min_len(self, length):
         assert length <= self.max_motion_length

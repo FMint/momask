@@ -257,7 +257,7 @@ class MaskTransformer(nn.Module):
         logits = self.output_process(output) #(seqlen, b, e) -> (b, ntoken, seqlen)
         return logits
 
-    def forward(self, ids, y, m_lens, emotion_id=None, intensity=1.0):
+    def forward(self, ids, y, m_lens, emotion_id=None, intensity=0.0):
         '''
         :param ids: (b, n)
         :param y: raw text for cond_mode=text, (b, ) for cond_mode=action

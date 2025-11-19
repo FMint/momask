@@ -37,7 +37,7 @@ class MaskTransformerTrainer:
 
     def forward(self, batch_data):
 
-        conds, motion, m_lens = batch_data
+        conds, motion, m_lens, emotion_id, intensity = batch_data
         motion = motion.detach().float().to(self.device)
         m_lens = m_lens.detach().long().to(self.device)
 
@@ -51,19 +51,21 @@ class MaskTransformerTrainer:
         # self.pred_ids = []
         # self.acc = []
 
-        _loss, _pred_ids, _acc = self.t2m_transformer(code_idx[..., 0], conds, m_lens)
+        _loss, _pred_ids, _acc, text_loss, emo_loss = self.t2m_transformer(code_idx[..., 0], conds, m_lens, 
+                                                                emotion_id = emotion_id, 
+                                                                intensity = intensity)
 
-        return _loss, _acc
+        return _loss, _acc, text_loss, emo_loss
 
     def update(self, batch_data):
-        loss, acc = self.forward(batch_data)
+        loss, acc, text_loss, emo_loss = self.forward(batch_data)
 
         self.opt_t2m_transformer.zero_grad()
         loss.backward()
         self.opt_t2m_transformer.step()
         self.scheduler.step()
 
-        return loss.item(), acc
+        return loss.item(), acc, text_loss, emo_loss
 
     def save(self, file_name, ep, total_it):
         t2m_trans_state_dict = self.t2m_transformer.state_dict()
@@ -134,10 +136,12 @@ class MaskTransformerTrainer:
                 if it < self.opt.warm_up_iter:
                     self.update_lr_warm_up(it, self.opt.warm_up_iter, self.opt.lr)
 
-                loss, acc = self.update(batch_data=batch)
+                loss, acc, text_loss, emo_loss = self.update(batch_data=batch)
                 logs['loss'] += loss
                 logs['acc'] += acc
                 logs['lr'] += self.opt_t2m_transformer.param_groups[0]['lr']
+                logs['text_loss'] += text_loss
+                logs['emo_loss'] += emo_loss
 
                 if it % self.opt.log_every == 0:
                     mean_loss = OrderedDict()
@@ -163,7 +167,7 @@ class MaskTransformerTrainer:
             val_acc = []
             with torch.no_grad():
                 for i, batch_data in enumerate(val_loader):
-                    loss, acc = self.forward(batch_data)
+                    loss, acc, _, _ = self.forward(batch_data)
                     val_loss.append(loss.item())
                     val_acc.append(acc)
 

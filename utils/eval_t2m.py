@@ -896,6 +896,53 @@ def evaluation_mask_transformer_test(val_loader, vq_model, trans, repeat_id, eva
     print(msg)
     return fid, diversity, R_precision, matching_score_pred, multimodality
 
+from models.mask_transformer.tools import *
+@torch.no_grad()
+def evaluate_emotion(trans,
+                     vq_model,
+                     val_loader):
+    trans.eval()
+    all_preds = []
+    all_gts = []
+    for batch in val_loader:
+        if len(batch)>=8:
+            word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token, emotion_id = batch
+        else:
+            continue
+
+        m_length = m_length.cuda()
+        pose = pose.cuda().float()
+
+        code_ids,_ = vq_model.encode(pose) # (B, T/4, Q)
+        ids = code_ids[..., 0] #(B, T/4)
+
+        bs, ntoken = ids.shape
+
+        with torch.no_grad():
+            non_pad_mask = lengths_to_mask(m_length//4, ntoken)  # (B, T/4)
+            ids = torch.where(non_pad_mask, ids, trans.pad_id)
+            x = trans.token_emb(ids)  # (B, T/4, D)
+            x = trans.input_process(x)
+            x = trans.position_enc(x)
+
+            cond_vec = torch.zeros(bs, trans.latent_dim).cuda()
+            cond = cond_vec.unsqueeze(0)
+            xseq = torch.cat([cond, x], dim=0)  # (T/4+1, B, D)
+            padding_mask = torch.cat([torch.zeros(bs, 1).cuda(), ~non_pad_mask], dim=1)  # (B, T/4+1)
+            encoded = trans.seqTransencoder(xseq, src_key_padding_mask=padding_mask)[1:]  # (T/4+1, B, D)
+            emo_logits = trans.emotion_classifier(encoded.mean(dim=0))  # (B, num_emotions)
+
+        pred = emo_logits.argmax(dim=-1).cpu()
+        gt = emotion_id.cpu()
+        all_preds.append(pred)
+        all_gts.append(gt)
+
+    all_preds = torch.cat(all_preds, dim=0).numpy()
+    all_gts = torch.cat(all_gts, dim=0).numpy()
+
+    emotion_acc = (all_preds == all_gts).float().mean().item()
+
+    return emotion_acc
 
 @torch.no_grad()
 def evaluation_mask_transformer_test_plus_res(val_loader, vq_model, res_model, trans, repeat_id, eval_wrapper,

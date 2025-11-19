@@ -164,6 +164,10 @@ class Text2MotionDatasetEval(data.Dataset):
         self.name_list = name_list
         self.reset_max_len(self.max_length)
 
+        import pandas as pd
+        meta_path = pjoin(opt.meta_dir, 'file_info_with_emotion.csv')
+        self.file_info = pd.read_csv(meta_path,index_col=0)
+
     def reset_max_len(self, length):
         assert length <= self.max_motion_length
         self.pointer = np.searchsorted(self.length_arr, length)
@@ -224,7 +228,14 @@ class Text2MotionDatasetEval(data.Dataset):
                                      ], axis=0)
         # print(word_embeddings.shape, motion.shape)
         # print(tokens)
-        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens)
+
+        current_name = self.name_list[idx]
+        row = self.file_info.loc[current_name]
+        emotion_id = int(row['emotion_id'])
+        intensity = float(row['intensity'])
+
+        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), \
+                emotion_id, intensity
 
 
 class Text2MotionDataset(data.Dataset):

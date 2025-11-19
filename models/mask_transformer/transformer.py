@@ -128,6 +128,24 @@ class MaskTransformer(nn.Module):
         else:
             raise KeyError("Unsupported condition mode!!!")
 
+        self.emotion_emb = nn.Embedding(8, self.latent_dim) #7+1unknown=8
+        # self.emotion_proj = nn.Linear(self.latent_dim, self.latent_dim)
+        self.intensity_proj = nn.Sequential( #0-1
+            nn.Linear(1, 64),
+            nn.ReLU(),
+            nn.Linear(64, self.latent_dim)
+        )
+        self.emotion_classifier = nn.Linear(self.latent_dim, 8)
+        self.emotion2id = {
+            'happy':0,#H
+            'sad':1,#SA
+            'angry':2,#A
+            'fearful':3,#F
+            'disgust':4,#D
+            'surprise':5,#SU
+            'neutral':6,#N
+            'unknown':7#UN
+        }
 
         _num_tokens = opt.num_tokens + 2  # two dummy tokens, one for masking, one for padding
         self.mask_id = opt.num_tokens
@@ -239,7 +257,7 @@ class MaskTransformer(nn.Module):
         logits = self.output_process(output) #(seqlen, b, e) -> (b, ntoken, seqlen)
         return logits
 
-    def forward(self, ids, y, m_lens):
+    def forward(self, ids, y, m_lens, emotion_id=None, intensity=1.0):
         '''
         :param ids: (b, n)
         :param y: raw text for cond_mode=text, (b, ) for cond_mode=action
@@ -266,6 +284,22 @@ class MaskTransformer(nn.Module):
         else:
             raise NotImplementedError("Unsupported condition mode!!!")
 
+        #emotion
+        if emotion_id is None:
+            emotion_emb = torch.zeros(bs, self.latent_dim, device=device)
+            use_predivtion_emotion = True
+        else:
+            emotion_emb = self.emotion_emb(emotion_id).to(device) #(b, latent_dim)
+            if isinstance(intensity, float):
+                intensity = torch.tensor([intensity], device=device).float()
+            intens_tensor = intensity.view(-1, 1)
+            intens_emb = self.intensity_proj(intens_tensor) #(b, latent_dim)
+            # emotion_emb = self.emotion_proj(emotion_emb + intens_emb) #(b, latent_dim)
+            emotion_emb = emotion_emb + intens_emb #(b, latent_dim)
+            use_predivtion_emotion = False
+
+        emotion_cond = emotion_emb.unsqueeze(0)  #(1, b, latent_dim)
+        cond = self.cond_emb(cond_vector).unsqueeze(0) + emotion_cond  #(1, b, latent_dim)
 
         '''
         Prepare mask
@@ -301,7 +335,25 @@ class MaskTransformer(nn.Module):
         logits = self.trans_forward(x_ids, cond_vector, ~non_pad_mask, force_mask)
         ce_loss, pred_id, acc = cal_performance(logits, labels, ignore_index=self.mask_id)
 
-        return ce_loss, pred_id, acc
+        #emotion classification loss
+        emo_loss = 0.0
+        if self.training and emotion_id is not None:
+            with torch.no_grad():
+                x = self.token_emb(ids)
+                x = self.input_process(x)
+                x = self.position_enc(x)
+                xseq = torch.cat([cond, x], dim=0)  # (seqlen+1, b, latent_dim)
+                # padding_mask = torch.cat([torch.zeros_like(non_pad_mask[:, 0:1]), ~non_pad_mask], dim=1)  # (b, seqlen+1)
+                padding_mask = torch.cat([torch.zeros(bs, 1, device=device), ~non_pad_mask], dim=1)  # (b, seqlen+1)
+                encoded = self.seqTransEncoder(xseq, src_key_padding_mask=padding_mask)[1:]  # (seqlen+1, b, e)
+
+            emo_logits = self.emotion_classifier(encoded.mean(dim=0)) #(b, 8)
+            emo_loss = F.cross_entropy(emo_logits, emotion_id)
+
+        total_loss = ce_loss + emo_loss * 0.5 #0.5可调
+        emo_val = emo_loss.item() if self.training else 0.0
+
+        return total_loss, pred_id, acc, ce_loss.item(), emo_val
 
     def forward_with_cond_scale(self,
                                 motion_ids,

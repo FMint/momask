@@ -37,7 +37,7 @@ class MaskTransformerTrainer:
 
     def forward(self, batch_data):
 
-        conds, motion, m_lens, emotion_id, intensity = batch_data
+        conds, motion, m_lens = batch_data
         motion = motion.detach().float().to(self.device)
         m_lens = m_lens.detach().long().to(self.device)
 
@@ -51,21 +51,19 @@ class MaskTransformerTrainer:
         # self.pred_ids = []
         # self.acc = []
 
-        _loss, _pred_ids, _acc, text_loss, emo_loss = self.t2m_transformer(code_idx[..., 0], conds, m_lens, 
-                                                                emotion_id = emotion_id, 
-                                                                intensity = intensity)
+        _loss, _pred_ids, _acc = self.t2m_transformer(code_idx[..., 0], conds, m_lens)
 
-        return _loss, _acc, text_loss, emo_loss
+        return _loss, _acc
 
     def update(self, batch_data):
-        loss, acc, text_loss, emo_loss = self.forward(batch_data)
+        loss, acc = self.forward(batch_data)
 
         self.opt_t2m_transformer.zero_grad()
         loss.backward()
         self.opt_t2m_transformer.step()
         self.scheduler.step()
 
-        return loss.item(), acc, text_loss, emo_loss
+        return loss.item(), acc
 
     def save(self, file_name, ep, total_it):
         t2m_trans_state_dict = self.t2m_transformer.state_dict()
@@ -82,18 +80,29 @@ class MaskTransformerTrainer:
         torch.save(state, file_name)
 
     def resume(self, model_dir):
-        checkpoint = torch.load(model_dir, map_location=self.device)
+        checkpoint = torch.load(model_dir, map_location='cpu')
         missing_keys, unexpected_keys = self.t2m_transformer.load_state_dict(checkpoint['t2m_transformer'], strict=False)
         assert len(unexpected_keys) == 0
         assert all([k.startswith('clip_model.') for k in missing_keys])
 
         try:
             self.opt_t2m_transformer.load_state_dict(checkpoint['opt_t2m_transformer']) # Optimizer
-
             self.scheduler.load_state_dict(checkpoint['scheduler']) # Scheduler
+
+            for st in self.opt_t2m_transformer.state.values():
+                for k, v in list(st.items()):
+                    if isinstance(v, torch.Tensor):
+                        if k == 'step':
+                            st[k] = v.cpu()
+                        else:
+                            st[k] = v.to(self.device)
         except:
             print('Resume wo optimizer')
-        return checkpoint['ep'], checkpoint['total_it']
+
+        ep = int(checkpoint.get('ep', 0))
+        total_it = int(checkpoint.get('total_it', 0))
+
+        return ep, total_it
 
     def train(self, train_loader, val_loader, eval_val_loader, eval_wrapper, plot_eval):
         self.t2m_transformer.to(self.device)
@@ -136,12 +145,10 @@ class MaskTransformerTrainer:
                 if it < self.opt.warm_up_iter:
                     self.update_lr_warm_up(it, self.opt.warm_up_iter, self.opt.lr)
 
-                loss, acc, text_loss, emo_loss = self.update(batch_data=batch)
+                loss, acc = self.update(batch_data=batch)
                 logs['loss'] += loss
                 logs['acc'] += acc
                 logs['lr'] += self.opt_t2m_transformer.param_groups[0]['lr']
-                logs['text_loss'] += text_loss
-                logs['emo_loss'] += emo_loss
 
                 if it % self.opt.log_every == 0:
                     mean_loss = OrderedDict()
@@ -167,7 +174,7 @@ class MaskTransformerTrainer:
             val_acc = []
             with torch.no_grad():
                 for i, batch_data in enumerate(val_loader):
-                    loss, acc, _, _ = self.forward(batch_data)
+                    loss, acc = self.forward(batch_data)
                     val_loss.append(loss.item())
                     val_acc.append(acc)
 
@@ -252,18 +259,29 @@ class ResidualTransformerTrainer:
         torch.save(state, file_name)
 
     def resume(self, model_dir):
-        checkpoint = torch.load(model_dir, map_location=self.device)
+        checkpoint = torch.load(model_dir, map_location='cpu')
         missing_keys, unexpected_keys = self.res_transformer.load_state_dict(checkpoint['res_transformer'], strict=False)
         assert len(unexpected_keys) == 0
         assert all([k.startswith('clip_model.') for k in missing_keys])
 
         try:
             self.opt_res_transformer.load_state_dict(checkpoint['opt_res_transformer']) # Optimizer
-
             self.scheduler.load_state_dict(checkpoint['scheduler']) # Scheduler
+
+            for st in self.opt_res_transformer.state.values():
+                for k, v in list(st.items()):
+                    if isinstance(v, torch.Tensor):
+                        if k == 'step':
+                            st[k] = v.cpu()
+                        else:
+                            st[k] = v.to(self.device)
         except:
             print('Resume wo optimizer')
-        return checkpoint['ep'], checkpoint['total_it']
+
+        ep = int(checkpoint.get('ep', 0))
+        total_it = int(checkpoint.get('total_it', 0))
+        
+        return ep, total_it
 
     def train(self, train_loader, val_loader, eval_val_loader, eval_wrapper, plot_eval):
         self.res_transformer.to(self.device)

@@ -109,9 +109,9 @@ if __name__ == "__main__":
     train_dataset = MotionDataset(opt, mean, std, train_split_file)
     val_dataset = MotionDataset(opt, mean, std, val_split_file)
 
-    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=4,
+    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=0,
                               shuffle=True, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=4,
+    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=0,
                             shuffle=True, pin_memory=True)
     eval_val_loader, _ = get_dataset_motion_loader(dataset_opt_path, 32, 'val', device=opt.device)
     trainer.train(train_loader, val_loader, eval_val_loader, eval_wrapper, plot_t2m)
@@ -120,3 +120,8 @@ if __name__ == "__main__":
 ## train_vq.py --dataset_name kit --batch_size 256 --name VQVAE_dp2_b256 --gpu_id 2
 ## train_vq.py --dataset_name kit --batch_size 1024 --name VQVAE_dp2_b1024 --gpu_id 1
 ## python train_vq.py --dataset_name kit --batch_size 256 --name VQVAE_dp1_b256 --gpu_id 2
+
+#python train_vq.py --name rvq_test3 --gpu_id 0 --dataset_name kit --batch_size 256 --num_quantizers 6  --max_epoch 50 --quantize_dropout_prob 0.2 --gamma 0.05
+#python train_vq.py --name rvq_test2 --gpu_id 0 --dataset_name t2m --batch_size 512 --num_quantizers 6  --max_epoch 50 --quantize_dropout_prob 0.2 --gamma 0.05
+#python train_t2m_transformer.py --name mtrans_1 --gpu_id 0 --dataset_name kit --batch_size 16 --vq_name rvq_test1
+#python train_res_transformer.py --name rtrans_1  --gpu_id 0 --dataset_name kit --batch_size 16 --vq_name rvq_test1 --cond_drop_prob 0.2 --share_weight

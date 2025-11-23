@@ -140,8 +140,8 @@ if __name__ == '__main__':
     train_dataset = Text2MotionDataset(opt, mean, std, train_split_file)
     val_dataset = Text2MotionDataset(opt, mean, std, val_split_file)
 
-    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, num_workers=4, shuffle=True, drop_last=True)
-    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, num_workers=4, shuffle=True, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, num_workers=0, shuffle=True, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, num_workers=0, shuffle=True, drop_last=True)
 
     eval_val_loader, _ = get_dataset_motion_loader(dataset_opt_path, 32, 'val', device=opt.device)
 

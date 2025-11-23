@@ -74,11 +74,22 @@ class RVQTokenizerTrainer:
         torch.save(state, file_name)
 
     def resume(self, model_dir):
-        checkpoint = torch.load(model_dir, map_location=self.device)
+        checkpoint = torch.load(model_dir, map_location='cpu')
         self.vq_model.load_state_dict(checkpoint['vq_model'])
         self.opt_vq_model.load_state_dict(checkpoint['opt_vq_model'])
+        for st in self.opt_vq_model.state.values():
+            for k, v in list(st.items()):
+                if isinstance(v, torch.Tensor):
+                    if k == 'step':
+                        st[k] = v.cpu()
+                    else:
+                        st[k] = v.to(self.device)
+        # 学习率调度器
         self.scheduler.load_state_dict(checkpoint['scheduler'])
-        return checkpoint['ep'], checkpoint['total_it']
+        ep = int(checkpoint.get('ep', 0))
+        total_it = int(checkpoint.get('total_it', 0))
+        return ep, total_it
+        # return checkpoint['ep'], checkpoint['total_it']
 
     def train(self, train_loader, val_loader, eval_val_loader, eval_wrapper, plot_eval=None):
         self.vq_model.to(self.device)

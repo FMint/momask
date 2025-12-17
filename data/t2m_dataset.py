@@ -94,7 +94,19 @@ class Text2MotionDatasetEval(data.Dataset):
         self.max_length = 20
         self.pointer = 0
         self.max_motion_length = opt.max_motion_length
-        min_motion_len = 40 if self.opt.dataset_name =='t2m' else 24
+        if self.opt.dataset_name =='t2m':
+            min_motion_len = 40 
+        elif self.opt.dataset_name =='kit':
+            min_motion_len = 24
+        elif self.opt.dataset_name =='kae' or self.opt.dataset_name =='sad':
+            min_motion_len = 10
+        else:
+            min_motion_len = 20
+
+        if self.opt.dataset_name =='kae':
+            max_motion_len = 500
+        else:
+            max_motion_len = 200
 
         data_dict = {}
         id_list = []
@@ -108,7 +120,7 @@ class Text2MotionDatasetEval(data.Dataset):
         for name in tqdm(id_list):
             try:
                 motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
-                if (len(motion)) < min_motion_len or (len(motion) >= 200):
+                if (len(motion)) < min_motion_len or (len(motion) >= max_motion_len):
                     continue
                 text_data = []
                 flag = False
@@ -131,7 +143,7 @@ class Text2MotionDatasetEval(data.Dataset):
                         else:
                             try:
                                 n_motion = motion[int(f_tag*20) : int(to_tag*20)]
-                                if (len(n_motion)) < min_motion_len or (len(n_motion) >= 200):
+                                if (len(n_motion)) < min_motion_len or (len(n_motion) >= max_motion_len):
                                     continue
                                 new_name = random.choice('ABCDEFGHIJKLMNOPQRSTUVW') + '_' + name
                                 while new_name in data_dict:
@@ -228,14 +240,7 @@ class Text2MotionDatasetEval(data.Dataset):
                                      ], axis=0)
         # print(word_embeddings.shape, motion.shape)
         # print(tokens)
-
-        current_name = self.name_list[idx]
-        row = self.file_info.loc[current_name]
-        emotion_id = int(row['emotion_id'])
-        intensity = float(row['intensity'])
-
-        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), \
-                emotion_id, intensity
+        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens)
 
 
 class Text2MotionDataset(data.Dataset):
@@ -244,7 +249,19 @@ class Text2MotionDataset(data.Dataset):
         self.max_length = 20
         self.pointer = 0
         self.max_motion_length = opt.max_motion_length
-        min_motion_len = 40 if self.opt.dataset_name =='t2m' else 24
+        if self.opt.dataset_name =='t2m':
+            min_motion_len = 40 
+        elif self.opt.dataset_name =='kit':
+            min_motion_len = 24
+        elif self.opt.dataset_name =='kae':
+            min_motion_len = 10
+        else:
+            min_motion_len = 20
+
+        if self.opt.dataset_name =='kae':
+            max_motion_len = 500
+        else:
+            max_motion_len = 200
 
         data_dict = {}
         id_list = []
@@ -258,7 +275,7 @@ class Text2MotionDataset(data.Dataset):
         for name in tqdm(id_list):
             try:
                 motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
-                if (len(motion)) < min_motion_len or (len(motion) >= 200):
+                if (len(motion)) < min_motion_len or (len(motion) >= max_motion_len):
                     continue
                 text_data = []
                 flag = False
@@ -304,7 +321,7 @@ class Text2MotionDataset(data.Dataset):
                     new_name_list.append(name)
                     length_list.append(len(motion))
             except Exception as e:
-                # print(e)
+                print(f"{name}: {e}")
                 pass
 
         # name_list, length_list = zip(*sorted(zip(new_name_list, length_list), key=lambda x: x[1]))
@@ -346,6 +363,19 @@ class Text2MotionDataset(data.Dataset):
         idx = random.randint(0, len(motion) - m_length)
         motion = motion[idx:idx+m_length]
 
+        # --------- 关键修改开始：先限制 m_length 不超过 max_motion_length ----------
+        # 允许的最大有效长度
+        max_len = min(self.max_motion_length, m_length)
+        # 从原始 motion 中随机截取一段 max_len
+        if len(motion) > max_len:
+            start = random.randint(0, len(motion) - max_len)
+            motion = motion[start:start + max_len]
+            m_length = max_len
+        else:
+            # 原始长度 <= max_len，则截取从 0 开始的一段
+            motion = motion[:max_len]
+            m_length = max_len
+
         "Z Normalization"
         motion = (motion - self.mean) / self.std
 
@@ -355,15 +385,7 @@ class Text2MotionDataset(data.Dataset):
                                      ], axis=0)
         # print(word_embeddings.shape, motion.shape)
         # print(tokens)
-
-        emotion_id = 7
-        intensity = 0.0
-        current_name = self.name_list[idx]
-        row = self.file_info.loc[current_name]
-        emotion_id = int(row.ge(t['emotion_id'],7))
-        intensity = float(row.get(['intensity'],0.0))
-
-        return caption, motion, m_length, emotion_id, intensity
+        return caption, motion, m_length
 
     def reset_min_len(self, length):
         assert length <= self.max_motion_length

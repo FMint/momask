@@ -96,6 +96,17 @@ if __name__ == '__main__':
         kinematic_chain = kit_kinematic_chain
         dataset_opt_path = './checkpoints/kit/Comp_v6_KLD005/opt.txt'
 
+    elif opt.dataset_name == 'kae':
+        opt.data_root = './dataset/kae'
+        opt.motion_dir = pjoin(opt.data_root, 'new_joint_vecs')
+        opt.joints_num = 22
+        # opt.max_motion_len = 55
+        dim_pose = 263
+        radius = 4
+        fps = 20
+        kinematic_chain = t2m_kinematic_chain
+        dataset_opt_path = './checkpoints/t2m/Comp_v6_KLD005/opt.txt'
+
     else:
         raise KeyError('Dataset Does Not Exist')
 
@@ -118,6 +129,46 @@ if __name__ == '__main__':
                                       cond_drop_prob=opt.cond_drop_prob,
                                       clip_version=clip_version,
                                       opt=opt)
+    
+    # ===== 加 LoRA 适配器 =====
+    # from peft import LoraConfig, get_peft_model
+
+    # lora_config = LoraConfig(
+    #     r=8,                         # LoRA rank，可调 4/8/16
+    #     lora_alpha=16,               # scaling
+    #     target_modules=["to_q", "to_k", "to_v", "to_out"],  
+    #     lora_dropout=0.1,
+    #     bias="none",
+    # )
+
+    # t2m_transformer = get_peft_model(t2m_transformer, lora_config)
+    # t2m_transformer.print_trainable_parameters()
+    # ===== 结束 LoRA 部分 =====
+    
+    if opt.dataset_name == 'kae' and not opt.is_continue:
+        # 指向你训练好的 t2m 模型路径
+        pretrained_path = './checkpoints/t2m/mtrans_2_2/model/net_best_fid.tar'
+        print(f"Loading pretrained weights from {pretrained_path}")
+        ckpt = torch.load(pretrained_path, map_location=opt.device)
+        state_dict = ckpt['t2m_transformer'] if 't2m_transformer' in ckpt else ckpt['net']
+
+        # 当前模型自己的参数字典
+        model_dict = t2m_transformer.state_dict()
+
+        # 只保留在当前模型中存在、且 shape 一致的 key
+        filtered_dict = {}
+        for k, v in state_dict.items():
+            if k in model_dict and model_dict[k].shape == v.shape:
+                filtered_dict[k] = v
+
+        # 用预训练参数更新
+        model_dict.update(filtered_dict)
+
+        # 加载，strict=False 以忽略仍然对不上的 key
+        missing, unexpected = t2m_transformer.load_state_dict(model_dict, strict=False)
+        print('[Pretrain] loaded keys:', len(filtered_dict))
+        print('[Pretrain] missing keys:', missing)
+        print('[Pretrain] unexpected keys:', unexpected)
 
     # if opt.fix_token_emb:
     #     t2m_transformer.load_and_freeze_token_emb(vq_model.quantizer.codebooks[0])
@@ -140,8 +191,8 @@ if __name__ == '__main__':
     train_dataset = Text2MotionDataset(opt, mean, std, train_split_file)
     val_dataset = Text2MotionDataset(opt, mean, std, val_split_file)
 
-    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, num_workers=0, shuffle=True, drop_last=True)
-    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, num_workers=0, shuffle=True, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, num_workers=0, shuffle=True, drop_last=False)
+    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, num_workers=0, shuffle=True, drop_last=False)
 
     eval_val_loader, _ = get_dataset_motion_loader(dataset_opt_path, 32, 'val', device=opt.device)
 

@@ -84,7 +84,10 @@ def load_res_model(res_opt, vq_opt, opt):
                                             clip_version=clip_version,
                                             opt=res_opt)
 
-    ckpt = torch.load(pjoin(res_opt.checkpoints_dir, res_opt.dataset_name, res_opt.name, 'model', 'net_best_fid.tar'),
+    # ckpt = torch.load(pjoin(res_opt.checkpoints_dir, res_opt.dataset_name, res_opt.name, 'model', 'net_best_fid.tar'),
+    #                   map_location=opt.device)
+    # ckpt = torch.load(pjoin(res_opt.checkpoints_dir, res_opt.dataset_name, res_opt.name, 'model', 'latest.tar'),
+    ckpt = torch.load(pjoin(res_opt.checkpoints_dir, res_opt.dataset_name, res_opt.name, 'model', 'net_best_loss.tar'),
                       map_location=opt.device)
     missing_keys, unexpected_keys = res_transformer.load_state_dict(ckpt['res_transformer'], strict=False)
     assert len(unexpected_keys) == 0
@@ -148,7 +151,9 @@ if __name__ == '__main__':
     #################################
     ######Loading M-Transformer######
     #################################
-    t2m_transformer = load_trans_model(model_opt, opt, 'latest.tar')
+    # t2m_transformer = load_trans_model(model_opt, opt, 'latest.tar')
+    t2m_transformer = load_trans_model(model_opt, opt, 'net_best_acc.tar')
+    # t2m_transformer = load_trans_model(model_opt, opt, opt.which_epoch)
 
     ##################################
     #####Loading Length Predictor#####
@@ -252,10 +257,12 @@ if __name__ == '__main__':
             _, joint = converter.convert(joint, filename=bvh_path, iterations=100, foot_ik=False)
 
 
-            save_path = pjoin(animation_path, "sample%d_repeat%d_len%d.mp4"%(k, r, m_length[k]))
-            ik_save_path = pjoin(animation_path, "sample%d_repeat%d_len%d_ik.mp4"%(k, r, m_length[k]))
+            # save_path = pjoin(animation_path, "sample%d_repeat%d_len%d.mp4"%(k, r, m_length[k]))
+            # ik_save_path = pjoin(animation_path, "sample%d_repeat%d_len%d_ik.mp4"%(k, r, m_length[k]))
+            # ik_save_path = pjoin(animation_path, f"last8_{opt.name}_{opt.res_name}_len%d_ik.mp4"%(m_length[k]))
+            ik_save_path = pjoin(animation_path, f"best2_{opt.name}_{opt.res_name}_len%d_ik.mp4"%(m_length[k]))
 
             plot_3d_motion(ik_save_path, kinematic_chain, ik_joint, title=caption, fps=20)
-            plot_3d_motion(save_path, kinematic_chain, joint, title=caption, fps=20)
-            np.save(pjoin(joint_path, "sample%d_repeat%d_len%d.npy"%(k, r, m_length[k])), joint)
-            np.save(pjoin(joint_path, "sample%d_repeat%d_len%d_ik.npy"%(k, r, m_length[k])), ik_joint)
+            # plot_3d_motion(save_path, kinematic_chain, joint, title=caption, fps=20)
+            # np.save(pjoin(joint_path, "sample%d_repeat%d_len%d.npy"%(k, r, m_length[k])), joint)
+            # np.save(pjoin(joint_path, "sample%d_repeat%d_len%d_ik.npy"%(k, r, m_length[k])), ik_joint)

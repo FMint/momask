@@ -80,7 +80,8 @@ class MaskTransformerTrainer:
         torch.save(state, file_name)
 
     def resume(self, model_dir):
-        checkpoint = torch.load(model_dir, map_location=self.device)
+        # checkpoint = torch.load(model_dir, map_location=self.device)
+        checkpoint = torch.load(model_dir, map_location='cpu')
         missing_keys, unexpected_keys = self.t2m_transformer.load_state_dict(checkpoint['t2m_transformer'], strict=False)
         assert len(unexpected_keys) == 0
         assert all([k.startswith('clip_model.') for k in missing_keys])
@@ -89,9 +90,21 @@ class MaskTransformerTrainer:
             self.opt_t2m_transformer.load_state_dict(checkpoint['opt_t2m_transformer']) # Optimizer
 
             self.scheduler.load_state_dict(checkpoint['scheduler']) # Scheduler
+
+            for st in self.opt_t2m_transformer.state.values():
+                for k, v in list(st.items()):
+                    if isinstance(v, torch.Tensor):
+                        if k == 'step':
+                            st[k] = v.cpu()
+                        else:
+                            st[k] = v.to(self.device)
         except:
             print('Resume wo optimizer')
-        return checkpoint['ep'], checkpoint['total_it']
+
+        ep = int(checkpoint.get('ep', 0))
+        total_it = int(checkpoint.get('total_it', 0))
+        # return checkpoint['ep'], checkpoint['total_it']
+        return ep, total_it
 
     def train(self, train_loader, val_loader, eval_val_loader, eval_wrapper, plot_eval):
         self.t2m_transformer.to(self.device)
@@ -151,6 +164,9 @@ class MaskTransformerTrainer:
 
                 if it % self.opt.save_latest == 0:
                     self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
+
+                if epoch % 100 == 0:
+                    self.save(pjoin(self.opt.model_dir, 'epoch_%d.tar'%epoch), epoch, it)
 
             self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
             epoch += 1
@@ -248,7 +264,7 @@ class ResidualTransformerTrainer:
         torch.save(state, file_name)
 
     def resume(self, model_dir):
-        checkpoint = torch.load(model_dir, map_location=self.device)
+        checkpoint = torch.load(model_dir, map_location='cpu')
         missing_keys, unexpected_keys = self.res_transformer.load_state_dict(checkpoint['res_transformer'], strict=False)
         assert len(unexpected_keys) == 0
         assert all([k.startswith('clip_model.') for k in missing_keys])
@@ -257,9 +273,21 @@ class ResidualTransformerTrainer:
             self.opt_res_transformer.load_state_dict(checkpoint['opt_res_transformer']) # Optimizer
 
             self.scheduler.load_state_dict(checkpoint['scheduler']) # Scheduler
+
+            for st in self.opt_res_transformer.state.values():
+                for k, v in list(st.items()):
+                    if isinstance(v, torch.Tensor):
+                        if k == 'step':
+                            st[k] = v.cpu()
+                        else:
+                            st[k] = v.to(self.device)
         except:
             print('Resume wo optimizer')
-        return checkpoint['ep'], checkpoint['total_it']
+
+        ep = int(checkpoint.get('ep', 0))
+        total_it = int(checkpoint.get('total_it', 0))
+        return ep, total_it
+        # return checkpoint['ep'], checkpoint['total_it']
 
     def train(self, train_loader, val_loader, eval_val_loader, eval_wrapper, plot_eval):
         self.res_transformer.to(self.device)
@@ -320,6 +348,9 @@ class ResidualTransformerTrainer:
 
                 if it % self.opt.save_latest == 0:
                     self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
+
+                if epoch % 100 == 0:
+                    self.save(pjoin(self.opt.model_dir, 'epoch_%d.tar'%epoch), epoch, it)
 
             epoch += 1
             self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)

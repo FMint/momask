@@ -71,11 +71,44 @@ if __name__ == "__main__":
         opt.max_motion_length = 196
         kinematic_chain = paramUtil.kit_kinematic_chain
         dataset_opt_path = './checkpoints/kit/Comp_v6_KLD005/opt.txt'
+
+    elif opt.dataset_name == "kae":
+        opt.data_root = './dataset/kae/'
+        opt.motion_dir = pjoin(opt.data_root, 'new_joint_vecs')
+        opt.text_dir = pjoin(opt.data_root, 'texts')
+        opt.joints_num = 22
+        dim_pose = 263
+        fps = 20
+        radius = 4
+        kinematic_chain = paramUtil.t2m_kinematic_chain
+        # dataset_opt_path = './checkpoints/kae/Comp_v6_KLD005/opt.txt'
+        dataset_opt_path = './checkpoints/t2m/Comp_v6_KLD005/opt.txt'
+
+
+    elif opt.dataset_name == "sad":
+        opt.data_root = './dataset/sad/'
+        opt.motion_dir = pjoin(opt.data_root, 'new_joint_vecs')
+        opt.text_dir = pjoin(opt.data_root, 'texts')
+        opt.joints_num = 22
+        dim_pose = 263
+        fps = 20
+        radius = 4
+        kinematic_chain = paramUtil.t2m_kinematic_chain
+        dataset_opt_path = './checkpoints/t2m/Comp_v6_KLD005/opt.txt'
+
     else:
         raise KeyError('Dataset Does not Exists')
 
     wrapper_opt = get_opt(dataset_opt_path, torch.device('cuda'))
     eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
+
+    # if opt.dataset_name in ["t2m", "kit"]:
+    #     wrapper_opt = get_opt(dataset_opt_path, torch.device('cuda'))
+    #     eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
+    #     eval_val_loader, _ = get_dataset_motion_loader(dataset_opt_path, 32, 'val', device=opt.device)
+    # else:
+    #     eval_wrapper = None
+    #     eval_val_loader = None
 
     mean = np.load(pjoin(opt.data_root, 'Mean.npy'))
     std = np.load(pjoin(opt.data_root, 'Std.npy'))
@@ -96,6 +129,13 @@ if __name__ == "__main__":
                 opt.dilation_growth_rate,
                 opt.vq_act,
                 opt.vq_norm)
+        
+    if opt.dataset_name == "kae" and not opt.is_continue:
+        # 指向你训练好的 t2m 模型路径
+        pretrained_path = './checkpoints/t2m/rvq_test2/model/net_best_fid.tar'
+        print(f"Loading pretrained weights from {pretrained_path}")
+        ckpt = torch.load(pretrained_path, map_location=opt.device)
+        net.load_state_dict(ckpt['vq_model'] if 'vq_model' in ckpt else ckpt['net'])
 
     pc_vq = sum(param.numel() for param in net.parameters())
     print(net)
@@ -109,9 +149,9 @@ if __name__ == "__main__":
     train_dataset = MotionDataset(opt, mean, std, train_split_file)
     val_dataset = MotionDataset(opt, mean, std, val_split_file)
 
-    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=4,
+    train_loader = DataLoader(train_dataset, batch_size=opt.batch_size, drop_last=False, num_workers=0,
                               shuffle=True, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, drop_last=True, num_workers=4,
+    val_loader = DataLoader(val_dataset, batch_size=opt.batch_size, drop_last=False, num_workers=0,
                             shuffle=True, pin_memory=True)
     eval_val_loader, _ = get_dataset_motion_loader(dataset_opt_path, 32, 'val', device=opt.device)
     trainer.train(train_loader, val_loader, eval_val_loader, eval_wrapper, plot_t2m)

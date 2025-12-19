@@ -194,7 +194,8 @@ class Text2MotionDatasetEval(data.Dataset):
 
     def __getitem__(self, item):
         idx = self.pointer + item
-        data = self.data_dict[self.name_list[idx]]
+        name = self.name_list[idx]
+        data = self.data_dict[name]
         motion, m_length, text_list = data['motion'], data['length'], data['text']
         # Randomly select a caption
         text_data = random.choice(text_list)
@@ -238,9 +239,20 @@ class Text2MotionDatasetEval(data.Dataset):
             motion = np.concatenate([motion,
                                      np.zeros((self.max_motion_length - m_length, motion.shape[1]))
                                      ], axis=0)
-        # print(word_embeddings.shape, motion.shape)
-        # print(tokens)
-        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens)
+
+        # ===== 在 eval 里同样查 emotion_id / intensity =====
+        base_name = name
+        if '_' in name:
+            base_name = name.split('_', 1)[1]  # 去掉前缀 A_
+        row = self.file_info[self.file_info['filename'] == base_name]
+        if len(row) == 0:
+            emotion_id = 7
+            intensity = 0.0
+        else:
+            emotion_id = int(row['emotion_id'].values[0])
+            intensity = float(row['intensity'].values[0])
+
+        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), emotion_id, intensity
 
 
 class Text2MotionDataset(data.Dataset):

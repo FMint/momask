@@ -478,8 +478,13 @@ def evaluation_mask_transformer(out_dir, val_loader, trans, vq_model, writer, ep
     gt_mu, gt_cov = calculate_activation_statistics(motion_annotation_np)
     mu, cov = calculate_activation_statistics(motion_pred_np)
 
-    diversity_real = calculate_diversity(motion_annotation_np, 300 if nb_sample > 300 else 100)
-    diversity = calculate_diversity(motion_pred_np, 300 if nb_sample > 300 else 100)
+    # diversity_real = calculate_diversity(motion_annotation_np, 300 if nb_sample > 300 else 100)
+    # diversity = calculate_diversity(motion_pred_np, 300 if nb_sample > 300 else 100)
+    div_times = 300 if nb_sample > 300 else 100
+    div_times_real = min(div_times, motion_annotation_np.shape[0]-1)
+    div_times_pred = min(div_times, motion_pred_np.shape[0]-1)
+    diversity_real = calculate_diversity(motion_annotation_np, div_times_real)
+    diversity = calculate_diversity(motion_pred_np, div_times_pred)
 
     R_precision_real = R_precision_real / nb_sample
     R_precision = R_precision / nb_sample

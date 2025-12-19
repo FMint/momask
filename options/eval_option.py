@@ -28,6 +28,9 @@ class EvalT2MOptions(BaseOptions):
         self.parser.add_argument('--res_name', type=str, default='tres_nlayer8_ld384_ff1024_rvq6ns_cdp0.2_sw', help='Model name of residual transformer')
         self.parser.add_argument('--text_path', type=str, default="", help='Text prompt file')
 
+        self.parser.add_argument('--emotion_id', type=int, default=-1, help='Emotion ID for generation, -1 means no emotion control.')
+        self.parser.add_argument('--intensity', type=float, default=0.5, help='Strength of emotion control, range [0, 1].')
+        self.parser.add_argument('--save_num', type=int, default=1, help='save number for the generated motion files.')
 
         self.parser.add_argument('-msec', '--mask_edit_section', nargs='*', type=str, help='Indicate sections for editing, use comma to separate the start and end of a section'
                                  'type int will specify the token frame, type float will specify the ratio of seq_len')

@@ -287,16 +287,26 @@ class MaskTransformer(nn.Module):
         #emotion
         if emotion_id is None:
             emotion_emb = torch.zeros(bs, self.latent_dim, device=device)
-            use_predivtion_emotion = True
+            use_prediction_emotion = True
         else:
+            if not torch.is_tensor(emotion_id):
+                emotion_id = torch.as_tensor(emotion_id, device=device, dtype=torch.long)
+            else:
+                emotion_id = emotion_id.to(device=device, dtype=torch.long)
+
+            if not torch.is_tensor(intensity):
+                intensity = torch.as_tensor(intensity, device=device, dtype=torch.float)
+            else:
+                intensity = intensity.to(device=device, dtype=torch.float)
+
             emotion_emb = self.emotion_emb(emotion_id).to(device) #(b, latent_dim)
             if isinstance(intensity, float):
-                intensity = torch.tensor([intensity], device=device).float()
+                intensity = torch.tensor([intensity]*bs, device=device).float()
             intens_tensor = intensity.view(-1, 1)
             intens_emb = self.intensity_proj(intens_tensor) #(b, latent_dim)
             # emotion_emb = self.emotion_proj(emotion_emb + intens_emb) #(b, latent_dim)
             emotion_emb = emotion_emb + intens_emb #(b, latent_dim)
-            use_predivtion_emotion = False
+            use_prediction_emotion = False
 
         emotion_cond = emotion_emb.unsqueeze(0)  #(1, b, latent_dim)
         cond = self.cond_emb(cond_vector).unsqueeze(0) + emotion_cond  #(1, b, latent_dim)
@@ -385,7 +395,9 @@ class MaskTransformer(nn.Module):
                  temperature=1,
                  topk_filter_thres=0.9,
                  gsample=False,
-                 force_mask=False
+                 force_mask=False,
+                 emotion_id=None,
+                 intensity=0.5
                  ):
         # print(self.opt.num_quantizers)
         # assert len(timesteps) >= len(cond_scales) == self.opt.num_quantizers
@@ -403,6 +415,22 @@ class MaskTransformer(nn.Module):
             cond_vector = torch.zeros(batch_size, self.latent_dim).float().to(device)
         else:
             raise NotImplementedError("Unsupported condition mode!!!")
+        
+        if emotion_id is not None:
+            if not torch.is_tensor(emotion_id):
+                emotion_id = torch.tensor(emotion_id, device=device)
+            emotion_emb = self.emotion_emb(emotion_id).to(device)  #(b, latent_dim)
+
+            if isinstance(intensity, float):
+                intensity = torch.tensor([intensity]*batch_size, device=device).float()
+            intens_tensor = intensity.view(-1, 1)
+            intens_emb = self.intensity_proj(intens_tensor)  #(b, latent_dim)
+            # emotion_emb = self.emotion_proj(emotion_emb + intens_emb) #(b, latent_dim)
+            emotion_emb = emotion_emb + intens_emb #(b, latent_dim)
+
+            cond_vector = self.cond_emb(cond_vector) + emotion_emb
+        else:
+            cond_vector = self.cond_emb(cond_vector)
 
         padding_mask = ~lengths_to_mask(m_lens, seq_len)
         # print(padding_mask.shape, )

@@ -51,6 +51,17 @@ class MaskTransformerTrainer:
         # self.pred_ids = []
         # self.acc = []
 
+        if not torch.is_tensor(emotion_id):
+            emotion_id = torch.as_tensor(emotion_id, device=self.device, dtype=torch.long)
+        else:
+            emotion_id = emotion_id.to(device=self.device, dtype=torch.long)
+
+        if not torch.is_tensor(intensity):
+            intensity = torch.as_tensor(intensity, device=self.device, dtype=torch.float)
+        else:
+            intensity = intensity.to(device=self.device, dtype=torch.float)
+
+
         _loss, _pred_ids, _acc, text_loss, emo_loss = self.t2m_transformer(code_idx[..., 0], conds, m_lens, 
                                                                 emotion_id = emotion_id, 
                                                                 intensity = intensity)
@@ -227,7 +238,7 @@ class ResidualTransformerTrainer:
 
     def forward(self, batch_data):
 
-        conds, motion, m_lens = batch_data
+        conds, motion, m_lens = batch_data[:3]
         motion = motion.detach().float().to(self.device)
         m_lens = m_lens.detach().long().to(self.device)
 

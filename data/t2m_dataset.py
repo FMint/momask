@@ -177,8 +177,8 @@ class Text2MotionDatasetEval(data.Dataset):
         self.reset_max_len(self.max_length)
 
         import pandas as pd
-        meta_path = pjoin(opt.meta_dir, 'file_info_with_emotion.csv')
-        self.file_info = pd.read_csv(meta_path,index_col=0)
+        meta_path = pjoin('./dataset/', 'file_info_with_emotion.csv')
+        self.file_info = pd.read_csv(meta_path)
 
     def reset_max_len(self, length):
         assert length <= self.max_motion_length
@@ -333,9 +333,9 @@ class Text2MotionDataset(data.Dataset):
         self.data_dict = data_dict
         self.name_list = name_list
 
-        meta_path = pjoin(opt.meta_dir, 'file_info_with_emotion.csv')
+        meta_path = pjoin('./dataset/', 'file_info_with_emotion.csv')
         import pandas as pd
-        self.file_info = pd.read_csv(meta_path,index_col=0)
+        self.file_info = pd.read_csv(meta_path)
 
     def inv_transform(self, data):
         return data * self.std + self.mean
@@ -345,7 +345,8 @@ class Text2MotionDataset(data.Dataset):
 
     def __getitem__(self, item):
         idx = self.pointer + item
-        data = self.data_dict[self.name_list[idx]]
+        name = self.name_list[idx]
+        data = self.data_dict[name]
         motion, m_length, text_list = data['motion'], data['length'], data['text']
         # Randomly select a caption
         text_data = random.choice(text_list)
@@ -385,7 +386,19 @@ class Text2MotionDataset(data.Dataset):
                                      ], axis=0)
         # print(word_embeddings.shape, motion.shape)
         # print(tokens)
-        return caption, motion, m_length
+        base_name = name
+        if '_' in name:
+            base_name = name.split('_')[1]
+        row = self.file_info[self.file_info['filename'] == base_name]
+        if len(row) == 0:
+            # Default emotion if not found
+            emotion_id = 7
+            intensity = 0.0
+        else:
+            emotion_id = row['emotion_id'].values[0]
+            intensity = row['intensity'].values[0]
+            
+        return caption, motion, m_length, emotion_id, intensity
 
     def reset_min_len(self, length):
         assert length <= self.max_motion_length

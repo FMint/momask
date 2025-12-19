@@ -586,7 +586,8 @@ def evaluation_res_transformer(out_dir, val_loader, trans, vq_model, writer, ep,
     nb_sample = 0
     # for i in range(1):
     for batch in val_loader:
-        word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token = batch
+        (word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token,
+        emotion_id, intensity) = batch
         m_length = m_length.cuda().long()
         pose = pose.cuda().float()
 
@@ -973,7 +974,8 @@ def evaluation_mask_transformer_test_plus_res(val_loader, vq_model, res_model, t
         num_mm_batch = 3
 
     for i, batch in enumerate(val_loader):
-        word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token = batch
+        (word_embeddings, pos_one_hots, clip_text, sent_len, pose, m_length, token,
+        emotion_id, intensity) = batch
         m_length = m_length.cuda()
 
         bs, seq = pose.shape[:2]
@@ -986,7 +988,8 @@ def evaluation_mask_transformer_test_plus_res(val_loader, vq_model, res_model, t
             for _ in range(30):
                 mids = trans.generate(clip_text, m_length // 4, time_steps, cond_scale,
                                       temperature=temperature, topk_filter_thres=topkr,
-                                      gsample=gsample, force_mask=force_mask)
+                                      gsample=gsample, force_mask=force_mask,
+                                      emotion_id=emotion_id, intensity=intensity)
 
                 # motion_codes = motion_codes.permute(0, 2, 1)
                 # mids.unsqueeze_(-1)
@@ -1008,7 +1011,8 @@ def evaluation_mask_transformer_test_plus_res(val_loader, vq_model, res_model, t
         else:
             mids = trans.generate(clip_text, m_length // 4, time_steps, cond_scale,
                                   temperature=temperature, topk_filter_thres=topkr,
-                                  force_mask=force_mask)
+                                  force_mask=force_mask,
+                                  emotion_id=emotion_id, intensity=intensity)
 
             # motion_codes = motion_codes.permute(0, 2, 1)
             # mids.unsqueeze_(-1)

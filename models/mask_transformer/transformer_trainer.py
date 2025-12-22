@@ -51,6 +51,17 @@ class MaskTransformerTrainer:
         # self.pred_ids = []
         # self.acc = []
 
+        if not torch.is_tensor(emotion_id):
+            emotion_id = torch.as_tensor(emotion_id, device=self.device, dtype=torch.long)
+        else:
+            emotion_id = emotion_id.to(device=self.device, dtype=torch.long)
+
+        if not torch.is_tensor(intensity):
+            intensity = torch.as_tensor(intensity, device=self.device, dtype=torch.float)
+        else:
+            intensity = intensity.to(device=self.device, dtype=torch.float)
+
+
         _loss, _pred_ids, _acc, text_loss, emo_loss = self.t2m_transformer(code_idx[..., 0], conds, m_lens, 
                                                                 emotion_id = emotion_id, 
                                                                 intensity = intensity)
@@ -167,6 +178,9 @@ class MaskTransformerTrainer:
                 if it % self.opt.save_latest == 0:
                     self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
 
+                if epoch % 100 == 0:
+                    self.save(pjoin(self.opt.model_dir, 'epoch_%d.tar'%epoch), epoch, it)
+
             self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
             epoch += 1
 
@@ -224,7 +238,7 @@ class ResidualTransformerTrainer:
 
     def forward(self, batch_data):
 
-        conds, motion, m_lens = batch_data
+        conds, motion, m_lens = batch_data[:3]
         motion = motion.detach().float().to(self.device)
         m_lens = m_lens.detach().long().to(self.device)
 
@@ -346,6 +360,9 @@ class ResidualTransformerTrainer:
 
                 if it % self.opt.save_latest == 0:
                     self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)
+
+                if epoch % 100 == 0:
+                    self.save(pjoin(self.opt.model_dir, 'epoch_%d.tar'%epoch), epoch, it)
 
             epoch += 1
             self.save(pjoin(self.opt.model_dir, 'latest.tar'), epoch, it)

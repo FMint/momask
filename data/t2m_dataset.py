@@ -94,7 +94,19 @@ class Text2MotionDatasetEval(data.Dataset):
         self.max_length = 20
         self.pointer = 0
         self.max_motion_length = opt.max_motion_length
-        min_motion_len = 40 if self.opt.dataset_name =='t2m' else 24
+        if self.opt.dataset_name =='t2m':
+            min_motion_len = 40 
+        elif self.opt.dataset_name =='kit':
+            min_motion_len = 24
+        elif self.opt.dataset_name =='kae' or self.opt.dataset_name =='sad':
+            min_motion_len = 10
+        else:
+            min_motion_len = 20
+
+        if self.opt.dataset_name =='kae':
+            max_motion_len = 500
+        else:
+            max_motion_len = 200
 
         data_dict = {}
         id_list = []
@@ -108,7 +120,7 @@ class Text2MotionDatasetEval(data.Dataset):
         for name in tqdm(id_list):
             try:
                 motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
-                if (len(motion)) < min_motion_len or (len(motion) >= 200):
+                if (len(motion)) < min_motion_len or (len(motion) >= max_motion_len):
                     continue
                 text_data = []
                 flag = False
@@ -131,7 +143,7 @@ class Text2MotionDatasetEval(data.Dataset):
                         else:
                             try:
                                 n_motion = motion[int(f_tag*20) : int(to_tag*20)]
-                                if (len(n_motion)) < min_motion_len or (len(n_motion) >= 200):
+                                if (len(n_motion)) < min_motion_len or (len(n_motion) >= max_motion_len):
                                     continue
                                 new_name = random.choice('ABCDEFGHIJKLMNOPQRSTUVW') + '_' + name
                                 while new_name in data_dict:
@@ -165,8 +177,8 @@ class Text2MotionDatasetEval(data.Dataset):
         self.reset_max_len(self.max_length)
 
         import pandas as pd
-        meta_path = pjoin(opt.meta_dir, 'file_info_with_emotion.csv')
-        self.file_info = pd.read_csv(meta_path,index_col=0)
+        meta_path = pjoin('./dataset/', 'file_info_with_emotion.csv')
+        self.file_info = pd.read_csv(meta_path)
 
     def reset_max_len(self, length):
         assert length <= self.max_motion_length
@@ -182,7 +194,8 @@ class Text2MotionDatasetEval(data.Dataset):
 
     def __getitem__(self, item):
         idx = self.pointer + item
-        data = self.data_dict[self.name_list[idx]]
+        name = self.name_list[idx]
+        data = self.data_dict[name]
         motion, m_length, text_list = data['motion'], data['length'], data['text']
         # Randomly select a caption
         text_data = random.choice(text_list)
@@ -226,16 +239,20 @@ class Text2MotionDatasetEval(data.Dataset):
             motion = np.concatenate([motion,
                                      np.zeros((self.max_motion_length - m_length, motion.shape[1]))
                                      ], axis=0)
-        # print(word_embeddings.shape, motion.shape)
-        # print(tokens)
 
-        current_name = self.name_list[idx]
-        row = self.file_info.loc[current_name]
-        emotion_id = int(row['emotion_id'])
-        intensity = float(row['intensity'])
+        # ===== 在 eval 里同样查 emotion_id / intensity =====
+        base_name = name
+        if '_' in name:
+            base_name = name.split('_', 1)[1]  # 去掉前缀 A_
+        row = self.file_info[self.file_info['filename'] == base_name]
+        if len(row) == 0:
+            emotion_id = 7
+            intensity = 0.0
+        else:
+            emotion_id = int(row['emotion_id'].values[0])
+            intensity = float(row['intensity'].values[0])
 
-        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), \
-                emotion_id, intensity
+        return word_embeddings, pos_one_hots, caption, sent_len, motion, m_length, '_'.join(tokens), emotion_id, intensity
 
 
 class Text2MotionDataset(data.Dataset):
@@ -244,7 +261,19 @@ class Text2MotionDataset(data.Dataset):
         self.max_length = 20
         self.pointer = 0
         self.max_motion_length = opt.max_motion_length
-        min_motion_len = 40 if self.opt.dataset_name =='t2m' else 24
+        if self.opt.dataset_name =='t2m':
+            min_motion_len = 40 
+        elif self.opt.dataset_name =='kit':
+            min_motion_len = 24
+        elif self.opt.dataset_name =='kae':
+            min_motion_len = 10
+        else:
+            min_motion_len = 20
+
+        if self.opt.dataset_name =='kae':
+            max_motion_len = 500
+        else:
+            max_motion_len = 200
 
         data_dict = {}
         id_list = []
@@ -258,7 +287,7 @@ class Text2MotionDataset(data.Dataset):
         for name in tqdm(id_list):
             try:
                 motion = np.load(pjoin(opt.motion_dir, name + '.npy'))
-                if (len(motion)) < min_motion_len or (len(motion) >= 200):
+                if (len(motion)) < min_motion_len or (len(motion) >= max_motion_len):
                     continue
                 text_data = []
                 flag = False
@@ -304,7 +333,7 @@ class Text2MotionDataset(data.Dataset):
                     new_name_list.append(name)
                     length_list.append(len(motion))
             except Exception as e:
-                # print(e)
+                print(f"{name}: {e}")
                 pass
 
         # name_list, length_list = zip(*sorted(zip(new_name_list, length_list), key=lambda x: x[1]))
@@ -316,9 +345,9 @@ class Text2MotionDataset(data.Dataset):
         self.data_dict = data_dict
         self.name_list = name_list
 
-        meta_path = pjoin(opt.meta_dir, 'file_info_with_emotion.csv')
+        meta_path = pjoin('./dataset/', 'file_info_with_emotion.csv')
         import pandas as pd
-        self.file_info = pd.read_csv(meta_path,index_col=0)
+        self.file_info = pd.read_csv(meta_path)
 
     def inv_transform(self, data):
         return data * self.std + self.mean
@@ -328,7 +357,8 @@ class Text2MotionDataset(data.Dataset):
 
     def __getitem__(self, item):
         idx = self.pointer + item
-        data = self.data_dict[self.name_list[idx]]
+        name = self.name_list[idx]
+        data = self.data_dict[name]
         motion, m_length, text_list = data['motion'], data['length'], data['text']
         # Randomly select a caption
         text_data = random.choice(text_list)
@@ -346,6 +376,19 @@ class Text2MotionDataset(data.Dataset):
         idx = random.randint(0, len(motion) - m_length)
         motion = motion[idx:idx+m_length]
 
+        # --------- 关键修改开始：先限制 m_length 不超过 max_motion_length ----------
+        # 允许的最大有效长度
+        max_len = min(self.max_motion_length, m_length)
+        # 从原始 motion 中随机截取一段 max_len
+        if len(motion) > max_len:
+            start = random.randint(0, len(motion) - max_len)
+            motion = motion[start:start + max_len]
+            m_length = max_len
+        else:
+            # 原始长度 <= max_len，则截取从 0 开始的一段
+            motion = motion[:max_len]
+            m_length = max_len
+
         "Z Normalization"
         motion = (motion - self.mean) / self.std
 
@@ -355,14 +398,18 @@ class Text2MotionDataset(data.Dataset):
                                      ], axis=0)
         # print(word_embeddings.shape, motion.shape)
         # print(tokens)
-
-        emotion_id = 7
-        intensity = 0.0
-        current_name = self.name_list[idx]
-        row = self.file_info.loc[current_name]
-        emotion_id = int(row.ge(t['emotion_id'],7))
-        intensity = float(row.get(['intensity'],0.0))
-
+        base_name = name
+        if '_' in name:
+            base_name = name.split('_')[1]
+        row = self.file_info[self.file_info['filename'] == base_name]
+        if len(row) == 0:
+            # Default emotion if not found
+            emotion_id = 7
+            intensity = 0.0
+        else:
+            emotion_id = row['emotion_id'].values[0]
+            intensity = row['intensity'].values[0]
+            
         return caption, motion, m_length, emotion_id, intensity
 
     def reset_min_len(self, length):
